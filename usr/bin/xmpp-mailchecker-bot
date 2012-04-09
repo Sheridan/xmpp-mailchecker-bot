@@ -16,9 +16,11 @@ config       = None
 ################################################  admin logger ####################################################################
 class Logger:
     def log(self, text):
-	if config['manage']['log_to_admins']:
+	if config['manage']['log_to_admins'] == 'true':
 	    for admin in config['manage']['admins']:
 		bot.sendMessage(admin, text)
+	for logger in config['manage']['loggers']:
+	    bot.sendMessage(logger, text)
 ################################################  admin logger ####################################################################
 ################################################  mail checker ####################################################################
 class CheckError(Exception):
@@ -435,7 +437,7 @@ class Bot:
     def runMailCheckers(self):
 	for jid in storage.getJids():
 	    mailcheckers.add(jid)
-	    time.sleep(1)
+	    time.sleep(int(config['mailchecker_threads_start_interval']))
 	pass
 ################################################  bot ####################################################################
 
