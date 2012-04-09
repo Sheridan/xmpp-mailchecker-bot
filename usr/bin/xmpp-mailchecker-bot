@@ -34,6 +34,7 @@ class MailChecker(Thread):
 	self.interval = interval
 	self.terminate = False
 	self.check_now = False
+	self.imap_box_filter = re.compile('(%s)'%'|'.join(config['imap']['skip_folders']))
 
     def decodeText(self, header_text):
 	header_text = header_text.strip()
@@ -98,11 +99,12 @@ class MailChecker(Thread):
 	hashes = list()
 	
 	for directory in connection.list()[1]:
+	    #print directory
 	    matches = re.finditer(r'"(.+?)"', directory)
 	    results = [match.group(1) for match in matches]
 	    directory = results[1]
 	    
-	    if directory not in (config['imap']['skip_folders']): 
+	    if not self.imap_box_filter.match(directory): 
 		connection.select(directory, True)
 		typ, data = connection.search(None, 'UNSEEN')
 		if data[0] != '':
