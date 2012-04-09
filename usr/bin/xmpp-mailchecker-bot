@@ -1,0 +1,455 @@
+#!/usr/bin/python
+# -*- coding: utf8 -*-
+# $Id: bot.py,v 1.2 2006/10/06 12:30:42 normanr Exp $
+
+import sys, string, xmpp, os.path, poplib, imaplib, time, signal, os, hashlib, json, traceback, re
+from pysqlite2 import dbapi2 as sqlite
+from email import parser
+from email.header import decode_header
+from threading import Thread, Lock
+
+commands = {}
+storage      = None
+bot          = None
+mailcheckers = None
+config       = None
+################################################  admin logger ####################################################################
+class Logger:
+    def log(self, text):
+	if config['manage']['log_to_admins']:
+	    for admin in config['manage']['admins']:
+		bot.sendMessage(admin, text)
+################################################  admin logger ####################################################################
+################################################  mail checker ####################################################################
+class CheckError(Exception):
+    def __init__(self, value):
+	self.value = value
+    def __str__(self):
+	return repr(self.value)
+	
+class MailChecker(Thread):
+    def __init__(self, jid, interval):
+	Thread.__init__(self)
+	self.jid = jid
+	self.interval = interval
+	self.terminate = False
+	self.check_now = False
+
+    def decodeText(self, header_text):
+	header_text = header_text.strip()
+#	if header_text[0:2] != '=?':
+#	    return header_text
+	headers = decode_header(header_text)
+	header_sections = [unicode(text, charset or "utf-8") for text, charset in headers]
+	return u"".join(header_sections)
+
+    def checkPop(self, record):
+	result = ''
+	messages_count = 0
+	Logger().log(i18['log']['try_check_mail']%('POP3', record['server'], self.jid))
+	connection = None
+	try:
+	    connection = poplib.POP3_SSL(record['server'])
+	except:
+	    Logger().log(i18['log']['proto_ssl_err']%('POP3', traceback.format_exc()))
+	    try:
+		connection = poplib.POP3(record['server'])
+	    except:
+		Logger().log(i18['log']['proto_err']%('POP3', traceback.format_exc()))
+		raise CheckError(i18['log']['proto_conn_failed']%('POP3', record['server'], traceback.format_exc()))
+	connection.user(record['login'])
+	connection.pass_(record['password'])
+	
+	messages = [connection.retr(i) for i in range(connection.stat()[0], 0, -1)]
+	messages = ["\n".join(mssg[1]) for mssg in messages]
+	messages = [parser.Parser().parsestr(mssg, True) for mssg in messages]
+	result += 'Messages subjects:\n'
+	
+	hashes = list()
+	for message in messages:
+	    message_hash = self.buildMessageHash(message)
+	    hashes.append(message_hash)
+	    if not storage.checkMessageHashExists(self.jid, record['postbox'], message_hash):
+		result += "    %s: %s\n"%(self.decodeText(message['From']),self.decodeText(message['Subject']))
+		messages_count += 1
+	
+	connection.quit()
+	storage.cleanMessageHashes(self.jid, record['postbox'], hashes)
+	
+	Logger().log(i18['log']['check_done']%('POP3', record['server'], self.jid))
+	return {"result": result, "msg_count": messages_count}
+	
+    def checkImap(self, record):
+	result = ''
+	messages_count = 0
+	Logger().log(i18['log']['try_check_mail']%('IMAP4', record['server'], self.jid))
+	connection = None
+	try:
+	    connection = imaplib.IMAP4_SSL(record['server'])
+	except:
+	    Logger().log(i18['log']['proto_ssl_err']%('IMAP4', traceback.format_exc()))
+	    try:
+		connection = imaplib.IMAP4(record['server'])
+	    except:
+		Logger().log(i18['log']['proto_err']%('IMAP4', traceback.format_exc()))
+		raise CheckError(i18['log']['proto_conn_failed']%('IMAP4', record['server'], traceback.format_exc()))
+	connection.login(record['login'], record['password'])
+	
+	hashes = list()
+	
+	for directory in connection.list()[1]:
+	    matches = re.finditer(r'"(.+?)"', directory)
+	    results = [match.group(1) for match in matches]
+	    directory = results[1]
+	    
+	    if directory not in (config['imap']['skip_folders']): 
+		connection.select(directory, True)
+		typ, data = connection.search(None, 'UNSEEN')
+		if data[0] != '':
+		    messages = [connection.fetch(i, '(BODY[HEADER.FIELDS (SUBJECT FROM)])')[1][0][1] for i in data[0].split(' ')]
+		    messages = [parser.Parser().parsestr(mssg, True) for mssg in messages]
+
+		    for message in messages:
+			if message['From']:
+			    message_hash = self.buildMessageHash(message)
+			    hashes.append(message_hash)
+			    if not storage.checkMessageHashExists(self.jid, record['postbox'], message_hash):
+				result += "    %s: %s\n"%(self.decodeText(message['From']),self.decodeText(message['Subject']))
+				messages_count += 1
+
+	storage.cleanMessageHashes(self.jid, record['postbox'], hashes)
+	connection.close()
+	connection.logout()
+	Logger().log(i18['log']['check_done']%('IMAP4', record['server'], self.jid))
+	return {"result": result, "msg_count": messages_count}
+	
+    def buildMessageHash(self, message):
+	return hashlib.sha224(message['From']+message['Subject']).hexdigest()
+	
+    def checkMail(self):
+	result = ''
+	for record in storage.getRecords(self.jid):
+	    try:
+		boxResult = self.checkImap(record)
+		if int(boxResult['msg_count']) > 0:
+		    result += i18['user_messages']['new_post']%(record['postbox'], boxResult['result'], boxResult['msg_count'])
+	    except CheckError as e_imap:
+		try:
+		    boxResult = self.checkPop(record)
+		    if int(boxResult['msg_count']) > 0:
+			result += i18['user_messages']['new_post']%(record['postbox'], boxResult['result'], boxResult['msg_count'])
+		except CheckError as e_pop:
+		    result += "%s\n%s"%(e_imap.value, e_pop.value)
+	return result
+
+    def GoOn(self):
+	while not self.terminate:
+	    result = self.checkMail()
+	    if result != '':
+		bot.sendMessage(self.jid, result)
+	    for x in range(0, self.interval):
+		time.sleep(1)
+		if self.terminate or self.check_now:
+		    self.check_now = False
+		    break
+
+    def run(self):
+	Logger().log(i18['log']['mailchecker_thread_started']%self.jid)
+	self.GoOn()
+
+    def checkNow(self):
+	self.check_now = True
+	
+    def stop(self):
+	self.terminate = True
+################################################  mail checker ####################################################################
+################################################  mail checkers ####################################################################
+class MailCheckers:
+    def __init__(self):
+	self.checkers = []
+	
+    def add(self, jid):
+	checker = None
+	for ch in self.checkers:
+	    if ch['jid'] == jid:
+		checker = ch['ch']
+		break
+	if not checker:
+	    checker = MailChecker(jid, int(config['mail_check_interval']))
+	    self.checkers.append({ 'jid': jid, 'ch': checker })
+	    checker.start()
+	
+    def checkNow(self, jid):
+	for checker in self.checkers:
+	    if checker['jid'] == jid:
+		checker['ch'].checkNow()
+		
+    def stop(self):
+	for checker in self.checkers:
+	    checker['ch'].stop()
+	    checker['ch'].join()
+################################################  mail checkers ####################################################################
+################################################  database ####################################################################
+class DBStorage(object):
+
+    def init(self, db_file):
+	db_exists = os.path.exists(db_file)
+	self.db = sqlite.connect(db_file, check_same_thread = False)
+	if not db_exists:
+	    self.db.cursor().execute('CREATE TABLE records (jid VARCHAR(256), postbox VARCHAR(256), server VARCHAR(256), login VARCHAR(256), password VARCHAR(256))')
+	    self.db.cursor().execute('CREATE TABLE messages (jid VARCHAR(256), postbox VARCHAR(256), message_hash VARCHAR(64))')
+	    self.db.commit()
+	
+    def getRecord(self, jid, postbox):
+	q = self.db.cursor()
+	q.execute('select server, login, password from records where jid=? and postbox=?', (jid, postbox))
+	for row in q:
+	    return {'jid': jid, 'postbox': postbox, 'server': row[0], 'login': row[1], 'password': row[2]}
+	    
+    def getRecords(self, jid):
+	q = self.db.cursor()
+	q.execute('select postbox, server, login, password from records where jid=?', [jid])
+	result=list()
+	for row in q:
+	    result.append({'jid': jid, 'postbox': row[0], 'server': row[1], 'login': row[2], 'password': row[3]})
+	return result
+
+    def getJids(self):
+	q = self.db.cursor()
+	q.execute('select distinct jid from records')
+	result=list()
+	for row in q:
+	    result.append(row[0])
+	return result
+
+    def storeRecord(self, jid, postbox, server, login, password):
+	self.db.cursor().execute('INSERT INTO records VALUES (?, ?, ?, ?, ?)', (jid, postbox, server, login, password))
+	self.db.commit()
+	
+    def editRecord(self, jid, postbox, server, login, password):
+	self.db.cursor().execute('update records set server=?, login=?, password=? wherejid=? and postbox=?)', (server, login, password, jid, postbox))
+	self.db.commit()
+	
+    def removeRecord(self, jid, postbox):
+	self.db.cursor().execute('delete from records where jid=? and postbox=?', (jid, postbox))
+	self.db.commit()
+	self.resetMessageHashes(jid, postbox)
+	
+    def checkMessageHashExists(self, jid, postbox, message_hash):
+	q = self.db.cursor()
+	q.execute('select count(*) from messages where jid=? and postbox=? and message_hash=?', (jid, postbox, message_hash))
+	result = False
+	for row in q:
+	    if int(row[0]) > 0:
+		result = True
+	    else:
+		self.db.cursor().execute('INSERT INTO messages VALUES (?, ?, ?)', (jid, postbox, message_hash))
+		self.db.commit()
+	    break
+	return result
+
+    def cleanMessageHashes(self, jid, postbox, hashes):
+	q = self.db.cursor()
+	q.execute('select message_hash from messages where jid=? and postbox=?', (jid, postbox))
+	for row in q:
+	    if row[0] not in hashes:
+		#print "Removing hash %s from %s %s"%(jid, postbox, row[0])
+		self.db.cursor().execute('delete from messages where jid=? and postbox=? and message_hash=?', (jid, postbox, row[0]))
+		self.db.commit()
+	
+    def resetMessageHashes(self, jid, postbox):
+	if postbox != '':
+	    self.db.cursor().execute('delete from messages where jid=? and postbox=?', (jid, postbox))
+	else:
+	    self.db.cursor().execute('delete from messages where jid=?', [jid])
+	self.db.commit()
+################################################  database ####################################################################
+################################################  message composer ####################################################################
+class MessageComposer:
+    def listRecords(self, jid, unsequre):
+        result=''
+	for record in storage.getRecords(jid):
+	    result += '%s %s'%(record['postbox'],record['server'])
+	    if unsequre:
+		result += ' %s %s'%(record['login'],record['password'])
+	    result += '\n'
+	return i18['user_messages']['records_list']%result;
+################################################  message composer ####################################################################
+########################### user handlers ##################################
+class HWorker:
+    def addRecord(self, jid, mailbox, server, login, password):
+	storage.storeRecord(jid, mailbox, server, login, password)
+	mailcheckers.add(jid)
+	return i18['user_messages']['record_stored']%(mailbox, server, MessageComposer().listRecords(jid, False))
+	
+    def editRecord(self, jid, mailbox, server, login, password):
+	storage.editRecord(jid, mailbox, server, login, password)
+	return i18['user_messages']['record_changed']%(mailbox, server, MessageComposer().listRecords(jid, False))
+	
+    def removeRecord(self, jid, mailbox):
+	storage.removeRecord(jid, mailbox)
+	return i18['user_messages']['record_removed']%(mailbox, server, MessageComposer().listRecords(jid, False))
+    
+    def listRecords(self, jid, unsequre):
+	return MessageComposer().listRecords(jid, unsequre)
+	
+    def resetRecord(self, jid, mailbox):
+	storage.resetMessageHashes(jid, mailbox)
+	return i18['user_messages']['record_cashe_reseted']%jid
+	
+    def checkRecords(self, jid):
+	mailcheckers.checkNow(jid)
+	return i18['user_messages']['record_check_started']%jid
+	return "%s records check started"%jid
+	
+def helpHandler(user,command,args,mess):
+    msg = """Avialable commands: 
+add postbox:            add user@domain.com server login password
+remove postbox:         remove user@domain.com
+edit postbox:           edit user@domain.com server login password
+list managed postboxes: list [unsequre]
+check all postboxes:    check
+reset all postboxes:    reset
+reset postbox:          reset user@domain.com
+"""
+    if user.getStripped() in config['manage']['admins']:
+	msg += """
+Admin commands:
+add postbox:            a_add jid@domain.com user@domain.com server login password
+remove postbox:         a_remove jid@domain.com user@domain.com
+edit postbox:           a_edit jid@domain.com user@domain.com server login password
+list managed postboxes: a_list jid@domain.com [unsequre]
+reset all postboxes:    a_reset jid@domain.com
+reset postbox:          a_reset jid@domain.com user@domain.com
+"""
+    return msg
+def addHandler(user,command,args,mess):
+    data = args.split(' ')
+    return HWorker().addRecord(user.getStripped(), data[0], data[1], data[2], string.join(data[3:]))
+    
+def editHandler(user,command,args,mess):
+    data = args.split(' ')
+    return HWorker().editRecord(user.getStripped(), data[0], data[1], data[2], string.join(data[3:]))
+    
+def removeHandler(user,command,args,mess):
+    return HWorker().removeRecord(user.getStripped(), args)
+    
+def listHandler(user,command,args,mess):
+    return HWorker().listRecords(user.getStripped(), args == 'unsequre')
+    
+def resetHandler(user,command,args,mess):
+    return HWorker().resetRecord(user.getStripped(), args.strip())
+    
+def checkHandler(user,command,args,mess):
+    return HWorker().checkRecords(user.getStripped())
+####################     admin #################################
+def a_addHandler(user,command,args,mess):
+    data = args.split(' ')
+    return HWorker().addRecord(data[0], data[1], data[2], data[3], string.join(data[4:]))
+    
+def a_editHandler(user,command,args,mess):
+    data = args.split(' ')
+    return HWorker().editRecord(data[0], data[1], data[2], data[3], string.join(data[4:]))
+    
+def a_removeHandler(user,command,args,mess):
+    data = args.split(' ')
+    return HWorker().removeRecord(data[0], data[1])
+    
+def a_listHandler(user,command,args,mess):
+    data = args.split(' ')
+    return HWorker().listRecords(data[0], data[1] == 'unsequre')
+    
+def a_resetHandler(user,command,args,mess):
+    return HWorker().checkRecords(args)
+
+########################### user handlers stop ###################################
+################################################  bot ####################################################################
+class Bot:
+    def __init__(self, jid, password, resource):
+	self.terminate = False
+	self.jid = xmpp.JID(jid)
+	self.password = password
+	self.resource = resource
+	self.mutex = Lock()
+
+    def messageCB(self,client_connection,mess):
+	if mess.getType() != 'chat': return
+	text=mess.getBody()
+        user=mess.getFrom()
+        if text.find(' ')+1: 
+    	    command,args=text.split(' ',1)
+        else: 
+    	    command,args=text,''
+        cmd=command.lower()
+        if commands.has_key(cmd): 
+    	    reply=commands[cmd](user,command,args,mess)
+        else: 
+    	    reply="Unknown command %s. Try help"%cmd
+        if reply: 
+    	    client_connection.send(xmpp.Message(mess.getFrom(),reply,'chat'))
+
+    def sendMessage(self, jid_to, text):
+	self.mutex.acquire()
+	self.xmpp_connection.send(xmpp.Message(jid_to, text, 'chat'))
+	self.mutex.release()
+
+    def GoOn(self):
+        while not self.terminate: 
+    	    self.xmpp_connection.Process(1)
+
+    def stop(self):
+	self.terminate = True
+    
+    def run(self):
+	self.xmpp_connection=xmpp.Client(self.jid.getDomain(),debug=[])
+	conres=self.xmpp_connection.connect()
+	if not conres:
+	    print "Unable to connect to server %s!"%self.jid.getDomain()
+	    sys.exit(1)
+	if conres<>'tls':
+	    print "Warning: unable to estabilish secure connection - TLS failed!"
+	authres=self.xmpp_connection.auth(self.jid.getNode(), self.password, self.resource)
+	if not authres:
+	    print "Unable to authorize on %s - check login/password."%self.jid.getDomain()
+	    sys.exit(1)
+	if authres<>'sasl':
+	    print "Warning: unable to perform SASL auth os %s. Old authentication method used!"%self.jid.getDomain()
+	for i in globals().keys():
+	    if i[-7:]=='Handler' and i[:-7].lower()==i[:-7]: commands[i[:-7]]=globals()[i]
+	self.xmpp_connection.RegisterHandler('message', self.messageCB)
+	self.xmpp_connection.sendInitPresence()
+	Logger().log(i18['log']['bot_starting']%self.jid.getStripped())
+	self.runMailCheckers()
+	Logger().log(i18['log']['bot_started']%self.jid.getStripped())
+	self.GoOn();
+
+    def runMailCheckers(self):
+	for jid in storage.getJids():
+	    mailcheckers.add(jid)
+	pass
+################################################  bot ####################################################################
+
+def termHSignal(signum, frame):
+    Logger().log(i18['log']['bot_sig_stopping']%bot.jid.getStripped())
+    mailcheckers.stop()
+    Logger().log(i18['log']['bot_stopping']%bot.jid.getStripped())
+    bot.stop()
+    exit(0)
+
+signal.signal(signal.SIGINT, termHSignal)
+signal.signal(signal.SIGTERM, termHSignal)
+
+json_data=open('/etc/xmpp-mailchecker-bot.conf')
+config = json.load(json_data)
+json_data.close()
+
+json_data=open('/usr/local/share/xmpp-mailchecker-bot/%s'%config['lang'])
+i18 = json.load(json_data)
+json_data.close()
+
+storage = DBStorage()
+storage.init(config['database_file'])
+mailcheckers = MailCheckers()
+bot = Bot(config['bot_auth']['jid'], config['bot_auth']['pwd'], config['bot_auth']['res'])
+bot.run()
+

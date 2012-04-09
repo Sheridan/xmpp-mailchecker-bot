@@ -1,0 +1,25 @@
+{
+    "log":
+    {
+	"try_check_mail"   : "Try to check %s on %s for %s",
+	"check_done"       : "Done check %s on %s for %s",
+	"proto_ssl_err"    : "%s SSL protocol Error:\n%s\n Try without SSL...",
+	"proto_err"        : "%s protocol Error:\n%s\n",
+	"proto_conn_failed": "%s connection failed to %s:\n%s\n",
+	"bot_starting"     : "%s bot starting...",
+	"bot_started"      : "%s bot started.",
+	"bot_sig_stopping" : "%s bot stopping on signal... Wait for mailchecker threads...",
+	"bot_stopping"     : "%s bot stopping...",
+	"mailchecker_thread_started" : "Mail checker thread for %s started"
+    },
+    "user_messages":
+    {
+	"new_post"            : "Mail box: %s\n%s\nTotal emails:%s\n",
+	"record_stored"       : "Record %s:%s stored\n%s",
+	"record_changed"      : "Record %s:%s changed\n%s",
+	"record_removed"      : "Record %s:%s removed\n%s",
+	"record_cashe_reseted": "Records of %s cache reseted",
+	"record_check_started": "Record %s mailcheck started",
+	"records_list"        : "Avialable records:\n%s"
+    }
+}

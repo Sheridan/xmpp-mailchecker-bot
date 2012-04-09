@@ -1,0 +1,25 @@
+{
+    "log":
+    {
+	"try_check_mail"   : "Пробую проверить почту на %s://%s для %s",
+	"check_done"       : "Проверка %s://%s для %s успешна",
+	"proto_ssl_err"    : "%s ошибка SSL коннекта:\n%s\n Пробую без SSL...",
+	"proto_err"        : "Ошибка протокола %s:\n%s\n",
+	"proto_conn_failed": "Провал попытки соединения на %s://%s:\n%s\n",
+	"bot_starting"     : "%s стартую робота...",
+	"bot_started"      : "%s Робот жив.",
+	"bot_sig_stopping" : "%s останавливаю робота по сигналу... Ждем завершения потоков сканирования почты...",
+	"bot_stopping"     : "%s робот умирает...",
+	"mailchecker_thread_started" : "Поток проверки почты для %s запущен"
+    },
+    "user_messages":
+    {
+	"new_post"            : "Почтовый ящик: %s\n%s\nВсего непрочитанных писем:%s\n",
+	"record_stored"       : "Запись %s:%s добавлена\n%s",
+	"record_changed"      : "Запись %s:%s изменена\n%s",
+	"record_removed"      : "Запись %s:%s удалена\n%s",
+	"record_cashe_reseted": "Кеш новый писем для %s очищен",
+	"record_check_started": "Запущен процесс проверки почты для %s",
+	"records_list"        : "Доступные записи:\n%s"
+    }
+}
