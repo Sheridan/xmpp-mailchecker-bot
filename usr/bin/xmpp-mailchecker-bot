@@ -321,6 +321,7 @@ edit postbox:           a_edit jid@domain.com user@domain.com server login passw
 list managed postboxes: a_list jid@domain.com [unsequre]
 reset all postboxes:    a_reset jid@domain.com
 reset postbox:          a_reset jid@domain.com user@domain.com
+List all records of all users: a_all_list
 """
     return msg
 def addHandler(user,command,args,mess):
@@ -342,6 +343,7 @@ def resetHandler(user,command,args,mess):
     
 def checkHandler(user,command,args,mess):
     return HWorker().checkRecords(user.getStripped())
+    
 ####################     admin #################################
 def a_addHandler(user,command,args,mess):
     data = args.split(' ')
@@ -361,7 +363,12 @@ def a_listHandler(user,command,args,mess):
     
 def a_resetHandler(user,command,args,mess):
     return HWorker().checkRecords(args)
-
+    
+def a_all_listHandler(user,command,args,mess):
+    result = ''
+    for jid in storage.getJids():
+	result += "%s:\n%s\n\n"%(jid,HWorker().listRecords(jid, False))
+    return result
 ########################### user handlers stop ###################################
 ################################################  bot ####################################################################
 class Bot:
@@ -426,6 +433,7 @@ class Bot:
     def runMailCheckers(self):
 	for jid in storage.getJids():
 	    mailcheckers.add(jid)
+	    time.sleep(1)
 	pass
 ################################################  bot ####################################################################
 
