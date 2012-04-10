@@ -41,7 +41,6 @@ class MailChecker(Thread):
 	self.terminate = False
 	self.check_now = False
 	self.imap_box_filter = re.compile('(%s)'%'|'.join(config['imap']['skip_folders']))
-	self.decoded = re.compile('=\?.*\?=')
 
     def decodeText(self, header_text):
 	headers = decode_header(header_text)
