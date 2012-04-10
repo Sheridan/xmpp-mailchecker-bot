@@ -14,12 +14,12 @@
     },
     "user_messages":
     {
-	"new_post"            : "Mail box: %s\n%s\nTotal emails:%s\n",
+	"new_post"            : "\nMail box: %s\n%s\nTotal emails:%s\n",
 	"record_stored"       : "Record %s:%s stored\n%s",
 	"record_changed"      : "Record %s:%s changed\n%s",
 	"record_removed"      : "Record %s:%s removed\n%s",
 	"record_cashe_reseted": "Records of %s cache reseted",
 	"record_check_started": "Record %s mailcheck started",
-	"records_list"        : "Avialable records:\n%s"
+	"records_list"        : "\nAvialable records:\n%s"
     }
 }
