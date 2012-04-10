@@ -97,7 +97,6 @@ class MailChecker(Thread):
 	hashes = list()
 	
 	for directory in connection.list()[1]:
-	    #print directory
 	    matches = re.finditer(r'"(.+?)"', directory)
 	    results = [match.group(1) for match in matches]
 	    directory = results[1]
@@ -198,6 +197,10 @@ class DBStorage(object):
 	if not db_exists:
 	    self.db.cursor().execute('CREATE TABLE records (jid VARCHAR(256), postbox VARCHAR(256), server VARCHAR(256), login VARCHAR(256), password VARCHAR(256))')
 	    self.db.cursor().execute('CREATE TABLE messages (jid VARCHAR(256), postbox VARCHAR(256), message_hash VARCHAR(64))')
+	    self.db.cursor().execute('create index records_index_jid on records (jid)')
+	    self.db.cursor().execute('create index records_index on records (jid, postbox)')
+	    self.db.cursor().execute('create index messages_index_jid on messages (jid)')
+	    self.db.cursor().execute('create index messages_index on messages (jid, postbox)')
 	    self.db.commit()
 	
     def getRecord(self, jid, postbox):
@@ -300,7 +303,6 @@ class HWorker:
     def checkRecords(self, jid):
 	mailcheckers.checkNow(jid)
 	return i18['user_messages']['record_check_started']%jid
-	return "%s records check started"%jid
 	
 def helpHandler(user,command,args,mess):
     msg = """Avialable commands: 
