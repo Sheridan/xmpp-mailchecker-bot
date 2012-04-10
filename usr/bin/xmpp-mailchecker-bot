@@ -68,8 +68,7 @@ class MailChecker(Thread):
 	messages = [connection.retr(i) for i in range(connection.stat()[0], 0, -1)]
 	messages = ["\n".join(mssg[1]) for mssg in messages]
 	messages = [parser.Parser().parsestr(mssg, True) for mssg in messages]
-	result += 'Messages subjects:\n'
-	
+
 	hashes = list()
 	for message in messages:
 	    message_hash = self.buildMessageHash(message)
