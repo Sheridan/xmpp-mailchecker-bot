@@ -69,7 +69,7 @@ class MailChecker(Thread):
 	    message_hash = self.buildMessageHash(message)
 	    hashes.append(message_hash)
 	    if not storage.checkMessageHashExists(self.jid, record['postbox'], message_hash):
-		result += "    %s: %s\n"%(self.decodeText(message['From']),self.decodeText(message['Subject']))
+		result += i18['user_messages']['new_post_mail']%(self.decodeText(message['From']),self.decodeText(message['Subject']))
 		messages_count += 1
 	
 	connection.quit()
@@ -113,7 +113,7 @@ class MailChecker(Thread):
 			    message_hash = self.buildMessageHash(message)
 			    hashes.append(message_hash)
 			    if not storage.checkMessageHashExists(self.jid, record['postbox'], message_hash):
-				result += "    %s: %s\n"%(self.decodeText(message['From']),self.decodeText(message['Subject']))
+				result += i18['user_messages']['new_post_mail']%(self.decodeText(message['From']),self.decodeText(message['Subject']))
 				messages_count += 1
 
 	storage.cleanMessageHashes(self.jid, record['postbox'], hashes)
@@ -391,9 +391,9 @@ class Bot:
         cmd=command.lower()
         if commands.has_key(cmd): 
     	    reply=commands[cmd](user,command,args,mess)
-        else: 
+        else:
     	    reply=i18['user_messages']['unknown_command']%cmd
-        if reply: 
+        if reply:
     	    client_connection.send(xmpp.Message(mess.getFrom(),reply,'chat'))
 
     def sendMessage(self, jid_to, text):

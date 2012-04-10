@@ -15,6 +15,7 @@
     "user_messages":
     {
 	"new_post"            : "\nПочтовый ящик: %s\n%s\nВсего непрочитанных писем:%s\n",
+	"new_post_mail"       : "   Письмо от %s: %s\n",
 	"record_stored"       : "Запись %s:%s добавлена\n%s",
 	"record_changed"      : "Запись %s:%s изменена\n%s",
 	"record_removed"      : "Запись %s:%s удалена\n%s",
