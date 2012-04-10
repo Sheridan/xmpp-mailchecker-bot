@@ -15,8 +15,14 @@ config       = None
 class Logger:
     def log(self, text):
 	if config['manage']['log_to_admins'] == 'true':
-	    for admin in config['manage']['admins']:
+	    self.logToAdmins(text)
+	self.logToLoggers(text)
+
+    def logToAdmins(self, text):
+	for admin in config['manage']['admins']:
 		bot.sendMessage(admin, text)
+
+    def logToLoggers(self, text):
 	for logger in config['manage']['loggers']:
 	    bot.sendMessage(logger, text)
 ################################################  admin logger ####################################################################
@@ -323,6 +329,7 @@ list managed postboxes: a_list jid@domain.com [unsequre]
 reset all postboxes:    a_reset jid@domain.com
 reset postbox:          a_reset jid@domain.com user@domain.com
 List all records of all users: a_all_list
+Stop bot:               a_quit
 """
     return msg
 def addHandler(user,command,args,mess):
@@ -347,29 +354,57 @@ def checkHandler(user,command,args,mess):
     
 ####################     admin #################################
 def a_addHandler(user,command,args,mess):
-    data = args.split(' ')
-    return HWorker().addRecord(data[0], data[1], data[2], data[3], string.join(data[4:]))
+    if user.getStripped() in config['manage']['admins']:
+	data = args.split(' ')
+	return HWorker().addRecord(data[0], data[1], data[2], data[3], string.join(data[4:]))
+    else:
+	return i18['user_messages']['not_admin']%user.getStripped()
     
 def a_editHandler(user,command,args,mess):
-    data = args.split(' ')
-    return HWorker().editRecord(data[0], data[1], data[2], data[3], string.join(data[4:]))
+    if user.getStripped() in config['manage']['admins']:
+	data = args.split(' ')
+	return HWorker().editRecord(data[0], data[1], data[2], data[3], string.join(data[4:]))
+    else:
+	return i18['user_messages']['not_admin']%user.getStripped()
     
 def a_removeHandler(user,command,args,mess):
-    data = args.split(' ')
-    return HWorker().removeRecord(data[0], data[1])
+    if user.getStripped() in config['manage']['admins']:
+	data = args.split(' ')
+	return HWorker().removeRecord(data[0], data[1])
+    else:
+	return i18['user_messages']['not_admin']%user.getStripped()
     
 def a_listHandler(user,command,args,mess):
-    data = args.split(' ')
-    return HWorker().listRecords(data[0], data[1] == 'unsequre')
+    if user.getStripped() in config['manage']['admins']:
+	data = args.split(' ')
+	return HWorker().listRecords(data[0], data[1] == 'unsequre')
+    else:
+	return i18['user_messages']['not_admin']%user.getStripped()
     
 def a_resetHandler(user,command,args,mess):
-    return HWorker().checkRecords(args)
+    if user.getStripped() in config['manage']['admins']:
+	return HWorker().checkRecords(args)
+    else:
+	return i18['user_messages']['not_admin']%user.getStripped()
     
 def a_all_listHandler(user,command,args,mess):
-    result = ''
-    for jid in storage.getJids():
-	result += "%s:\n%s\n\n"%(jid,HWorker().listRecords(jid, False))
-    return result
+    if user.getStripped() in config['manage']['admins']:
+	result = ''
+	for jid in storage.getJids():
+	    result += "%s:\n%s\n\n"%(jid,HWorker().listRecords(jid, False))
+	return result
+    else:
+	return i18['user_messages']['not_admin']%user.getStripped()
+
+def a_quitHandler(user,command,args,mess):
+    if user.getStripped() in config['manage']['admins']:
+	Logger().logToAdmins(i18['log']['bot_command_stopping']%(bot.jid.getStripped(), user.getStripped()))
+	mailcheckers.stop()
+	Logger().logToAdmins(i18['log']['bot_stopping']%bot.jid.getStripped())
+	bot.stop()
+	exit(0)
+    else:
+	return i18['user_messages']['not_admin']%user.getStripped()
 ########################### user handlers stop ###################################
 ################################################  bot ####################################################################
 class Bot:
@@ -426,9 +461,9 @@ class Bot:
 	    if i[-7:]=='Handler' and i[:-7].lower()==i[:-7]: commands[i[:-7]]=globals()[i]
 	self.xmpp_connection.RegisterHandler('message', self.messageCB)
 	self.xmpp_connection.sendInitPresence()
-	Logger().log(i18['log']['bot_starting']%self.jid.getStripped())
+	Logger().logToAdmins(i18['log']['bot_starting']%self.jid.getStripped())
 	self.runMailCheckers()
-	Logger().log(i18['log']['bot_started']%self.jid.getStripped())
+	Logger().logToAdmins(i18['log']['bot_started']%self.jid.getStripped())
 	self.GoOn();
 
     def runMailCheckers(self):
@@ -439,9 +474,9 @@ class Bot:
 ################################################  bot ####################################################################
 
 def termHSignal(signum, frame):
-    Logger().log(i18['log']['bot_sig_stopping']%bot.jid.getStripped())
+    Logger().logToAdmins(i18['log']['bot_sig_stopping']%bot.jid.getStripped())
     mailcheckers.stop()
-    Logger().log(i18['log']['bot_stopping']%bot.jid.getStripped())
+    Logger().logToAdmins(i18['log']['bot_stopping']%bot.jid.getStripped())
     bot.stop()
     exit(0)
 

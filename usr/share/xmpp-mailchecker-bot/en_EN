@@ -9,6 +9,7 @@
 	"bot_starting"     : "%s bot starting...",
 	"bot_started"      : "%s bot started.",
 	"bot_sig_stopping" : "%s bot stopping on signal... Wait for mailchecker threads...",
+	"bot_command_stopping" : "%s bot stopping on command from %s... Wait for mailchecker threads...",
 	"bot_stopping"     : "%s bot stopping...",
 	"mailchecker_thread_started" : "Mail checker thread for %s started"
     },
@@ -22,6 +23,7 @@
 	"record_cashe_reseted": "Records of %s cache reseted",
 	"record_check_started": "Record %s mailcheck started",
 	"records_list"        : "\nAvialable records:\n%s",
-	"unknown_command"     : "Uncknown command %s. Try help"
+	"unknown_command"     : "Uncknown command %s. Try help",
+	"not_admin"           : "You ( %s ) not admin!"
     }
 }
