@@ -41,12 +41,19 @@ class MailChecker(Thread):
 	self.terminate = False
 	self.check_now = False
 	self.imap_box_filter = re.compile('(%s)'%'|'.join(config['imap']['skip_folders']))
+	self.decoded = re.compile('=\?.*\?=')
 
     def decodeText(self, header_text):
-	header_text = header_text.strip()
 	headers = decode_header(header_text)
-	header_sections = [unicode(text, charset or "utf-8") for text, charset in headers]
-	return u"".join(header_sections)
+	formatted = u''
+	for text, charset in headers:
+	    if text:
+		text_part = unicode(text, charset or "utf-8")
+		for m in re.findall(r'(=\?.+?\?=)', text_part):
+		    hpart = decode_header(m)
+		    text_part = text_part.replace(m, unicode(hpart[0][0], hpart[0][1] or "utf-8"))
+		formatted += text_part
+	return formatted
 
     def checkPop(self, record):
 	result = ''
