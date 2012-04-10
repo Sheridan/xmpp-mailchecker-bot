@@ -1,0 +1,38 @@
+#!/bin/sh
+
+start() {
+        start-stop-daemon --start --quiet --background --make-pidfile \
+                --pidfile /var/run/xmpp-mailchecker-bot.pid \
+                --exec /usr/local/bin/xmpp-mailchecker-bot
+}
+
+stop() {
+        start-stop-daemon --stop --quiet --pidfile /var/run/xmpp-mailchecker-bot.pid \
+		--exec /usr/local/bin/xmpp-mailchecker-bot
+}
+
+case "$1" in
+  start)
+	echo -n "Starting xmpp-mailchecker-bot: "
+	start
+	echo "xmpp-mailchecker-bot started."
+	;;
+  stop)
+	echo -n "Stopping xmpp-mailchecker-bot: "
+	stop
+	echo "xmpp-mailchecker-bot stopped."
+	;;
+  restart|force-reload)
+	echo -n "Restarting xmpp-mailchecker-bot: "
+	stop
+	start
+	echo "xmpp-mailchecker-bot restarted."
+	;;
+  *)
+	N=/etc/init.d/xmpp-mailchecker-bot-ubuntu
+	echo "Usage: $N {start|stop|restart|force-reload}" >&2
+	exit 1
+	;;
+esac
+
+exit 0
