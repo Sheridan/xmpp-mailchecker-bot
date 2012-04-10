@@ -53,6 +53,8 @@ class MailChecker(Thread):
 		    hpart = decode_header(m)
 		    text_part = text_part.replace(m, unicode(hpart[0][0], hpart[0][1] or "utf-8"))
 		formatted += text_part
+	for repl_from, repl_to in config['headers_text_replaces']:
+	    formatted = re.sub(repl_from, repl_to, formatted, 0)
 	return formatted
 
     def checkPop(self, record):
