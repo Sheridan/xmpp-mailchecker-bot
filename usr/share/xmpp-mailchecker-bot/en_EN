@@ -20,6 +20,7 @@
 	"record_removed"      : "Record %s:%s removed\n%s",
 	"record_cashe_reseted": "Records of %s cache reseted",
 	"record_check_started": "Record %s mailcheck started",
-	"records_list"        : "\nAvialable records:\n%s"
+	"records_list"        : "\nAvialable records:\n%s",
+	"unknown_command"     : "Uncknown command %s. Try help"
     }
 }

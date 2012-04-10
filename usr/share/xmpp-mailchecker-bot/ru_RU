@@ -21,5 +21,6 @@
 	"record_cashe_reseted": "Кеш новый писем для %s очищен",
 	"record_check_started": "Запущен процесс проверки почты для %s",
 	"records_list"        : "\nДоступные записи:\n%s"
+	"unknown_command"     : "Неизвестная комманда %s. Попробуйте help"
     }
 }

@@ -256,7 +256,6 @@ class DBStorage(object):
 	q.execute('select message_hash from messages where jid=? and postbox=?', (jid, postbox))
 	for row in q:
 	    if row[0] not in hashes:
-		#print "Removing hash %s from %s %s"%(jid, postbox, row[0])
 		self.db.cursor().execute('delete from messages where jid=? and postbox=? and message_hash=?', (jid, postbox, row[0]))
 		self.db.commit()
 	
@@ -393,7 +392,7 @@ class Bot:
         if commands.has_key(cmd): 
     	    reply=commands[cmd](user,command,args,mess)
         else: 
-    	    reply="Unknown command %s. Try help"%cmd
+    	    reply=i18['user_messages']['unknown_command']%cmd
         if reply: 
     	    client_connection.send(xmpp.Message(mess.getFrom(),reply,'chat'))
 
