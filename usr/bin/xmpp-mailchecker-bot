@@ -460,10 +460,10 @@ class Bot:
 	for i in globals().keys():
 	    if i[-7:]=='Handler' and i[:-7].lower()==i[:-7]: commands[i[:-7]]=globals()[i]
 	self.xmpp_connection.RegisterHandler('message', self.messageCB)
-	self.xmpp_connection.sendInitPresence()
 	Logger().logToAdmins(i18['log']['bot_starting']%self.jid.getStripped())
 	self.runMailCheckers()
 	Logger().logToAdmins(i18['log']['bot_started']%self.jid.getStripped())
+	self.xmpp_connection.sendInitPresence()
 	self.GoOn();
 
     def runMailCheckers(self):
