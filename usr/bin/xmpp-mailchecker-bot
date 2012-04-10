@@ -1,6 +1,5 @@
-#!/usr/bin/python
+#!/usr/bin/env python2
 # -*- coding: utf8 -*-
-# $Id: bot.py,v 1.2 2006/10/06 12:30:42 normanr Exp $
 
 import sys, string, xmpp, os.path, poplib, imaplib, time, signal, os, hashlib, json, traceback, re
 from pysqlite2 import dbapi2 as sqlite
