@@ -421,8 +421,21 @@ class Bot:
 	self.password = password
 	self.resource = resource
 	self.mutex = Lock()
+	self.online_users = {}
 
-    def messageCB(self,client_connection,mess):
+    def presenceCB(self, client_connection, msg):
+	prs_type = msg.getType()
+	who = msg.getFrom()
+	jid_stripped = who.getStripped()
+	if jid_stripped not in self.online_users:
+	    self.online_users[jid_stripped] = set()
+	if prs_type == "unavailable":
+	    del self.online_users[jid_stripped]
+	if prs_type == "subscribe":
+	    self.sendPresence(who, 'subscribed')
+	    self.sendPresence(who, 'subscribe')
+
+    def messageCB(self, client_connection, mess):
 	if mess.getType() != 'chat': return
 	text=mess.getBody()
         user=mess.getFrom()
@@ -436,11 +449,19 @@ class Bot:
         else:
     	    reply=i18['user_messages']['unknown_command']%cmd
         if reply:
-    	    client_connection.send(xmpp.Message(mess.getFrom(),reply,'chat'))
+    	    self.sendMessage(mess.getFrom().getStripped(), reply)
 
     def sendMessage(self, jid_to, text):
 	self.mutex.acquire()
-	self.xmpp_connection.send(xmpp.Message(jid_to, text, 'chat'))
+	if jid_to in self.online_users           and config['manage']['send_to_offline_user']   == 'true' or \
+	   jid_to in config['manage']['admins']  and config['manage']['send_to_offline_admin']  == 'true' or \
+	   jid_to in config['manage']['loggers'] and config['manage']['send_to_offline_logger'] == 'true':
+	    self.xmpp_connection.send(xmpp.Message(jid_to, text, 'chat'))
+	self.mutex.release()
+	
+    def sendPresence(self, jid_to, p_type):
+	self.mutex.acquire()
+	self.xmpp_connection.send(xmpp.Presence(to=jid_to, typ=p_type))
 	self.mutex.release()
 
     def GoOn(self):
@@ -466,11 +487,12 @@ class Bot:
 	    print "Warning: unable to perform SASL auth os %s. Old authentication method used!"%self.jid.getDomain()
 	for i in globals().keys():
 	    if i[-7:]=='Handler' and i[:-7].lower()==i[:-7]: commands[i[:-7]]=globals()[i]
-	self.xmpp_connection.RegisterHandler('message', self.messageCB)
+	self.xmpp_connection.RegisterHandler('message' , self.messageCB )
+	self.xmpp_connection.RegisterHandler('presence', self.presenceCB)
+	self.xmpp_connection.sendInitPresence()
 	Logger().logToAdmins(i18['log']['bot_starting']%self.jid.getStripped())
 	self.runMailCheckers()
 	Logger().logToAdmins(i18['log']['bot_started']%self.jid.getStripped())
-	self.xmpp_connection.sendInitPresence()
 	self.GoOn();
 
     def runMailCheckers(self):
