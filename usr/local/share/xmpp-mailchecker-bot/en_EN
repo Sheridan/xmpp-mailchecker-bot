@@ -25,5 +25,33 @@
 	"records_list"        : "\nAvialable records:\n%s",
 	"unknown_command"     : "Uncknown command %s. Try help",
 	"not_admin"           : "You ( %s ) not admin!"
+    },
+    "help":
+    {
+	"header": "Avialable commands",
+	"add"   : "Add postbox",
+	"remove": "Remove postbox",
+	"edit"  : "Edit postbox",
+	"list"  : "List managed postboxes [unsequre]",
+	"check" : "Check new mail",
+	"reset" : "Reset new mail cache [one postbox]",
+
+	"admin_header": "Admin commands",
+	"a_add"       : "Add postbox",
+	"a_remove"    : "Remove postbox",
+	"a_edit"      : "Edit postbox",
+	"a_list"      : "List managed postboxes [one user] [unsequre]",
+	"a_check"     : "Check new mail [one user]",
+	"a_reset"     : "Reset new mail cache [one user] [one postbox]",
+	"a_status"    : "Mail checkers satauses",
+	"a_stop"      : "Stop bot"
+    },
+    "mailchecker_status":
+    {
+       "sleep"      : "Sleep",
+       "check"      : "Check in %s://%s",
+       "connect"    : "Connect to %s://%s",
+       "disconnect" : "Disconnect from %s://%s",
+       "cache_clean": "Cleaning new mail cashe for %s"
     }
 }

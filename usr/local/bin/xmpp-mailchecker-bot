@@ -41,6 +41,7 @@ class MailChecker(Thread):
 	self.terminate = False
 	self.check_now = False
 	self.imap_box_filter = re.compile('(%s)'%'|'.join(config['imap']['skip_folders']))
+	self.status = i18['mailchecker_status']['sleep']
 
     def decodeText(self, header_text):
 	headers = decode_header(header_text)
@@ -61,6 +62,7 @@ class MailChecker(Thread):
 	messages_count = 0
 	Logger().log(i18['log']['try_check_mail']%('POP3', record['server'], self.jid))
 	connection = None
+	self.status = i18['mailchecker_status']['connect']%('POP3', record['server'])
 	try:
 	    connection = poplib.POP3_SSL(record['server'])
 	except:
@@ -70,6 +72,7 @@ class MailChecker(Thread):
 	    except:
 		Logger().log(i18['log']['proto_err']%('POP3', traceback.format_exc()))
 		raise CheckError(i18['log']['proto_conn_failed']%('POP3', record['server'], traceback.format_exc()))
+	self.status = i18['mailchecker_status']['check']%('POP3', record['server'])
 	connection.user(record['login'])
 	connection.pass_(record['password'])
 	
@@ -85,10 +88,13 @@ class MailChecker(Thread):
 		result += i18['user_messages']['new_post_mail']%(self.decodeText(message['From']),self.decodeText(message['Subject']))
 		messages_count += 1
 	
+	self.status = i18['mailchecker_status']['disconnect']%('POP3', record['server'])
 	connection.quit()
+	self.status = i18['mailchecker_status']['cache_clean']%(record['postbox'])
 	storage.cleanMessageHashes(self.jid, record['postbox'], hashes)
 	
 	Logger().log(i18['log']['check_done']%('POP3', record['server'], self.jid))
+	self.status = i18['mailchecker_status']['sleep']
 	return {"result": result, "msg_count": messages_count}
 	
     def checkImap(self, record):
@@ -96,6 +102,7 @@ class MailChecker(Thread):
 	messages_count = 0
 	Logger().log(i18['log']['try_check_mail']%('IMAP4', record['server'], self.jid))
 	connection = None
+	self.status = i18['mailchecker_status']['connect']%('IMAP4', record['server'])
 	try:
 	    connection = imaplib.IMAP4_SSL(record['server'])
 	except:
@@ -105,6 +112,7 @@ class MailChecker(Thread):
 	    except:
 		Logger().log(i18['log']['proto_err']%('IMAP4', traceback.format_exc()))
 		raise CheckError(i18['log']['proto_conn_failed']%('IMAP4', record['server'], traceback.format_exc()))
+	self.status = i18['mailchecker_status']['check']%('IMAP4', record['server'])
 	connection.login(record['login'], record['password'])
 	
 	hashes = list()
@@ -129,10 +137,13 @@ class MailChecker(Thread):
 				result += i18['user_messages']['new_post_mail']%(self.decodeText(message['From']),self.decodeText(message['Subject']))
 				messages_count += 1
 
+	self.status = i18['mailchecker_status']['cache_clean']%(record['postbox'])
 	storage.cleanMessageHashes(self.jid, record['postbox'], hashes)
+	self.status = i18['mailchecker_status']['disconnect']%('IMAP4', record['server'])
 	connection.close()
 	connection.logout()
 	Logger().log(i18['log']['check_done']%('IMAP4', record['server'], self.jid))
+	self.status = i18['mailchecker_status']['sleep']
 	return {"result": result, "msg_count": messages_count}
 	
     def buildMessageHash(self, message):
@@ -195,7 +206,13 @@ class MailCheckers:
 	for checker in self.checkers:
 	    if checker['jid'] == jid:
 		checker['ch'].checkNow()
-		
+
+    def statuses(self):
+	st = '\n'
+	for checker in self.checkers:
+	    st += '%s: %s\n'%(checker['jid'], checker['ch'].status)
+	return st
+
     def stop(self):
 	for checker in self.checkers:
 	    checker['ch'].stop()
@@ -312,33 +329,36 @@ class HWorker:
 	storage.resetMessageHashes(jid, mailbox)
 	return i18['user_messages']['record_cashe_reseted']%jid
 	
+    def resetRecords(self, jid):
+	message = ''
+	for record in storage.getRecords(jid):
+	    message += '%s\n'%self.resetRecord(jid, mailbox)
+	return message
+	
     def checkRecords(self, jid):
 	mailcheckers.checkNow(jid)
 	return i18['user_messages']['record_check_started']%jid
 	
 def helpHandler(user,command,args,mess):
-    msg = """Avialable commands: 
-add postbox:            add user@domain.com server login password
-remove postbox:         remove user@domain.com
-edit postbox:           edit user@domain.com server login password
-list managed postboxes: list [unsequre]
-check all postboxes:    check
-reset all postboxes:    reset
-reset postbox:          reset user@domain.com
-"""
+    msg  = i18['help']['header'] + ':\n'
+    msg += '%s: %s\n'%(i18['help']['add']   , 'add postbox@domain.com server login password')
+    msg += '%s: %s\n'%(i18['help']['remove'], 'remove postbox@domain.com')
+    msg += '%s: %s\n'%(i18['help']['edit']  , 'edit postbox@domain.com server login password')
+    msg += '%s: %s\n'%(i18['help']['list']  , 'list [unsequre]')
+    msg += '%s: %s\n'%(i18['help']['check'] , 'check')
+    msg += '%s: %s\n'%(i18['help']['reset'] , 'reset [postbox@domain.com]')
     if user.getStripped() in config['manage']['admins']:
-	msg += """
-Admin commands:
-add postbox:            a_add jid@domain.com user@domain.com server login password
-remove postbox:         a_remove jid@domain.com user@domain.com
-edit postbox:           a_edit jid@domain.com user@domain.com server login password
-list managed postboxes: a_list jid@domain.com [unsequre]
-reset all postboxes:    a_reset jid@domain.com
-reset postbox:          a_reset jid@domain.com user@domain.com
-List all records of all users: a_all_list
-Stop bot:               a_quit
-"""
+	msg += i18['help']['admin_header'] + ':\n'
+	msg += '%s: %s\n'%(i18['help']['a_add']   , 'a_add jid@domain.com postbox@domain.com server login password')
+	msg += '%s: %s\n'%(i18['help']['a_remove'], 'a_remove jid@domain.com postbox@domain.com')
+	msg += '%s: %s\n'%(i18['help']['a_edit']  , 'a_edit jid@domain.com postbox@domain.com server login password')
+	msg += '%s: %s\n'%(i18['help']['a_check'] , 'a_cheeck [jid@domain.com]')
+	msg += '%s: %s\n'%(i18['help']['a_list']  , 'a_list [jid@domain.com] [unsequre]')
+	msg += '%s: %s\n'%(i18['help']['a_reset'] , 'a_reset [jid@domain.com] [postbox@domain.com]')
+	msg += '%s: %s\n'%(i18['help']['a_status'], 'a_status')
+	msg += '%s: %s\n'%(i18['help']['a_stop']  , 'a_quit')
     return msg
+    
 def addHandler(user,command,args,mess):
     data = args.split(' ')
     return HWorker().addRecord(user.getStripped(), data[0], data[1], data[2], string.join(data[3:]))
@@ -384,25 +404,53 @@ def a_removeHandler(user,command,args,mess):
 def a_listHandler(user,command,args,mess):
     if user.getStripped() in config['manage']['admins']:
 	data = args.split(' ')
-	return HWorker().listRecords(data[0], data[1] == 'unsequre')
-    else:
-	return i18['user_messages']['not_admin']%user.getStripped()
-    
-def a_resetHandler(user,command,args,mess):
-    if user.getStripped() in config['manage']['admins']:
-	return HWorker().checkRecords(args)
-    else:
-	return i18['user_messages']['not_admin']%user.getStripped()
-    
-def a_all_listHandler(user,command,args,mess):
-    if user.getStripped() in config['manage']['admins']:
-	result = ''
-	for jid in storage.getJids():
-	    result += "%s:\n%s\n\n"%(jid,HWorker().listRecords(jid, False))
-	return result
+	if len(data) > 1:
+	    return HWorker().listRecords(data[0], data[1] == 'unsequre')
+	else:
+	    if data[0] != '' and data[0].find('@'):
+		return HWorker().listRecords(data[0], False)
+	    else:
+		message = ''
+		for jid in storage.getJids():
+		    message += "%s:%s\n"%(jid, HWorker().listRecords(jid, data[0] == 'unsequre'))
+		return message
     else:
 	return i18['user_messages']['not_admin']%user.getStripped()
 
+def a_resetHandler(user,command,args,mess):
+    if user.getStripped() in config['manage']['admins']:
+	data = args.split(' ')
+	if len(data) > 1:
+	    return HWorker().resetRecord(data[0], data[1])
+	else:
+	    if len(data) > 0:
+		return HWorker().resetRecords(data[0])
+	    else:
+		message = ''
+		for jid in storage.getJids():
+		    message += HWorker().resetRecords(jid)
+		return message
+    else:
+	return i18['user_messages']['not_admin']%user.getStripped()
+    
+def a_checkHandler(user,command,args,mess):
+    if user.getStripped() in config['manage']['admins']:
+	if args != '' and args.find('@'):
+	    return HWorker().checkRecords(args)
+	else:
+	    message = ''
+	    for jid in storage.getJids():
+		message += '%s\n'%HWorker().checkRecords(jid)
+	    return message
+    else:
+	return i18['user_messages']['not_admin']%user.getStripped()
+    
+def a_statusHandler(user,command,args,mess):
+    if user.getStripped() in config['manage']['admins']:
+	return mailcheckers.statuses()
+    else:
+	return i18['user_messages']['not_admin']%user.getStripped()
+    
 def a_quitHandler(user,command,args,mess):
     if user.getStripped() in config['manage']['admins']:
 	Logger().logToAdmins(i18['log']['bot_command_stopping']%(bot.jid.getStripped(), user.getStripped()))
