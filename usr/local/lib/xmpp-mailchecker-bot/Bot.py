@@ -3,7 +3,7 @@
 
 import sys, string, xmpp, time, signal
 from threading import Thread, Lock
-import MailCheck, Storage
+import MailCheck, Storage, XMPPLogger
 
 class CCommandExecuter:
 
@@ -180,11 +180,11 @@ class CCommandExecuter:
 
 ################################################  bot ####################################################################
 class CBot:
-    def __init__(self, i18, config, logger, jid, password, resource):
+    def __init__(self, i18, config, jid, password, resource):
 	self.terminate = False
 	self.i18 = i18
 	self.config = config
-	self.logger = logger
+	self.logger = XMPPLogger.CXMPPLogger(self, config)
 	self.storage = Storage.CDBStorage()
 	self.mailcheckers = MailCheck.CMailCheckers(self, self.i18, self.config, self.storage, self.logger)
 	self.jid = xmpp.JID(jid)

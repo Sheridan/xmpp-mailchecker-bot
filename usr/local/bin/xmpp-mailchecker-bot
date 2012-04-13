@@ -3,7 +3,7 @@
 
 import sys, os, signal, json
 sys.path.append(os.path.abspath('/usr/local/lib/xmpp-mailchecker-bot/'))
-import XMPPLogger, Bot
+import Bot
 
 json_data=open('/etc/xmpp-mailchecker-bot.conf')
 config = json.load(json_data)
@@ -13,16 +13,13 @@ json_data=open('/usr/local/share/xmpp-mailchecker-bot/%s'%config['lang'])
 i18 = json.load(json_data)
 json_data.close()
 
-logger = XMPPLogger.CXMPPLogger(config)
-bot = Bot.CBot(i18, config, logger, config['bot_auth']['jid'], config['bot_auth']['pwd'], config['bot_auth']['res'])
+bot = Bot.CBot(i18, config, config['bot_auth']['jid'], config['bot_auth']['pwd'], config['bot_auth']['res'])
 
 def termHSignal(signum, frame):
     bot.quit(i18['log']['bot_sig_stopping']%bot.jid.getStripped())
 
 signal.signal(signal.SIGINT, termHSignal)
 signal.signal(signal.SIGTERM, termHSignal)
-
-logger.setBot(bot)
 
 bot.run()
 
