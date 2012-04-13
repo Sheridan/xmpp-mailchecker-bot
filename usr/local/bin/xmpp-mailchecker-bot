@@ -34,9 +34,10 @@ class CheckError(Exception):
 	return repr(self.value)
 	
 class MailChecker(Thread):
-    def __init__(self, jid, interval):
+    def __init__(self, jid, postbox, interval):
 	Thread.__init__(self)
 	self.jid = jid
+	self.postbox = postbox
 	self.interval = interval
 	self.terminate = False
 	self.check_now = False
@@ -155,18 +156,18 @@ class MailChecker(Thread):
 	
     def checkMail(self):
 	result = ''
-	for record in storage.getRecords(self.jid):
+	record = storage.getRecord(self.jid, self.postbox)
+	try:
+	    boxResult = self.checkImap(record)
+	    if int(boxResult['msg_count']) > 0:
+	        result += i18['user_messages']['new_post']%(record['postbox'], boxResult['result'], boxResult['msg_count'])
+	except CheckError as e_imap:
 	    try:
-		boxResult = self.checkImap(record)
-		if int(boxResult['msg_count']) > 0:
+	        boxResult = self.checkPop(record)
+	        if int(boxResult['msg_count']) > 0:
 		    result += i18['user_messages']['new_post']%(record['postbox'], boxResult['result'], boxResult['msg_count'])
-	    except CheckError as e_imap:
-		try:
-		    boxResult = self.checkPop(record)
-		    if int(boxResult['msg_count']) > 0:
-			result += i18['user_messages']['new_post']%(record['postbox'], boxResult['result'], boxResult['msg_count'])
-		except CheckError as e_pop:
-		    result += "%s\n%s"%(e_imap.value, e_pop.value)
+	    except CheckError as e_pop:
+		result += "%s\n%s"%(e_imap.value, e_pop.value)
 	return result
 
     def GoOn(self):
@@ -195,15 +196,15 @@ class MailCheckers:
     def __init__(self):
 	self.checkers = []
 	
-    def add(self, jid):
+    def add(self, jid, postbox):
 	checker = None
 	for ch in self.checkers:
-	    if ch['jid'] == jid:
+	    if ch['jid'] == jid and ch['postbox'] == postbox:
 		checker = ch['ch']
 		break
 	if not checker:
-	    checker = MailChecker(jid, int(config['mail_check_interval']))
-	    self.checkers.append({ 'jid': jid, 'ch': checker })
+	    checker = MailChecker(jid, postbox, int(config['mail_check_interval']))
+	    self.checkers.append({ 'jid': jid, 'postbox': postbox, 'ch': checker })
 	    checker.start()
 	
     def checkNow(self, jid):
@@ -214,7 +215,7 @@ class MailCheckers:
     def statuses(self):
 	st = '\n'
 	for checker in self.checkers:
-	    st += '%s: %s\n'%(checker['jid'], checker['ch'].status)
+	    st += '%s, %s: %s\n'%(checker['jid'], checker['postbox'], checker['ch'].status)
 	return st
 
     def stop(self):
@@ -315,7 +316,7 @@ class MessageComposer:
 class HWorker:
     def addRecord(self, jid, mailbox, server, login, password):
 	storage.storeRecord(jid, mailbox, server, login, password)
-	mailcheckers.add(jid)
+	mailcheckers.add(jid, mailbox)
 	return i18['user_messages']['record_stored']%(mailbox, server, MessageComposer().listRecords(jid, False))
 	
     def editRecord(self, jid, mailbox, server, login, password):
@@ -549,8 +550,9 @@ class Bot:
 
     def runMailCheckers(self):
 	for jid in storage.getJids():
-	    mailcheckers.add(jid)
-	    time.sleep(int(config['mailchecker_threads_start_interval']))
+	    for record in storage.getRecords(jid):
+		mailcheckers.add(jid, record['postbox'])
+		time.sleep(int(config['mailchecker_threads_start_interval']))
 	pass
 ################################################  bot ####################################################################
 
