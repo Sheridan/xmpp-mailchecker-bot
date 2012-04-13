@@ -43,6 +43,7 @@ class MailChecker(Thread):
 	self.check_now = False
 	self.imap_box_filter = re.compile('(%s)'%'|'.join(config['imap']['skip_folders']))
 	self.status = i18['mailchecker_status']['sleep']
+	self.used_protocol = 'unknown'
 
     def decodeText(self, header_text):
 	headers = decode_header(header_text)
@@ -66,14 +67,18 @@ class MailChecker(Thread):
 	self.status = i18['mailchecker_status']['connect']%('POP3', record['server'])
 	try:
 	    connection = poplib.POP3_SSL(record['server'])
+	    self.used_protocol = 'POP3.SSL'
 	except:
 	    Logger().log(i18['log']['proto_ssl_err']%('POP3', traceback.format_exc()))
+	    self.used_protocol = 'unknown'
 	    try:
 		connection = poplib.POP3(record['server'])
+		self.used_protocol = 'POP3'
 	    except:
 		Logger().log(i18['log']['proto_err']%('POP3', traceback.format_exc()))
+		self.used_protocol = 'unknown'
 		raise CheckError(i18['log']['proto_conn_failed']%('POP3', record['server'], traceback.format_exc()))
-	self.status = i18['mailchecker_status']['check']%('POP3', record['server'])
+	self.status = i18['mailchecker_status']['check']%(self.used_protocol, record['server'])
 	connection.user(record['login'])
 	connection.pass_(record['password'])
 	
@@ -89,12 +94,12 @@ class MailChecker(Thread):
 		result += i18['user_messages']['new_post_mail']%(self.decodeText(message['From']),self.decodeText(message['Subject']))
 		messages_count += 1
 	
-	self.status = i18['mailchecker_status']['disconnect']%('POP3', record['server'])
+	self.status = i18['mailchecker_status']['disconnect']%(self.used_protocol, record['server'])
 	connection.quit()
 	self.status = i18['mailchecker_status']['cache_clean']%(record['postbox'])
 	storage.cleanMessageHashes(self.jid, record['postbox'], hashes)
 	
-	Logger().log(i18['log']['check_done']%('POP3', record['server'], self.jid))
+	Logger().log(i18['log']['check_done']%(self.used_protocol, record['server'], self.jid))
 	self.status = i18['mailchecker_status']['sleep']
 	return {"result": result, "msg_count": messages_count}
 	
@@ -106,14 +111,18 @@ class MailChecker(Thread):
 	self.status = i18['mailchecker_status']['connect']%('IMAP4', record['server'])
 	try:
 	    connection = imaplib.IMAP4_SSL(record['server'])
+	    self.used_protocol = 'IMAP4.SSL'
 	except:
 	    Logger().log(i18['log']['proto_ssl_err']%('IMAP4', traceback.format_exc()))
+	    self.used_protocol = 'unknown'
 	    try:
 		connection = imaplib.IMAP4(record['server'])
+		self.used_protocol = 'IMAP4'
 	    except:
 		Logger().log(i18['log']['proto_err']%('IMAP4', traceback.format_exc()))
+		self.used_protocol = 'unknown'
 		raise CheckError(i18['log']['proto_conn_failed']%('IMAP4', record['server'], traceback.format_exc()))
-	self.status = i18['mailchecker_status']['check']%('IMAP4', record['server'])
+	self.status = i18['mailchecker_status']['check']%(self.used_protocol, record['server'])
 	connection.login(record['login'], record['password'])
 	
 	hashes = list()
@@ -140,10 +149,10 @@ class MailChecker(Thread):
 
 	self.status = i18['mailchecker_status']['cache_clean']%(record['postbox'])
 	storage.cleanMessageHashes(self.jid, record['postbox'], hashes)
-	self.status = i18['mailchecker_status']['disconnect']%('IMAP4', record['server'])
+	self.status = i18['mailchecker_status']['disconnect']%(self.used_protocol, record['server'])
 	connection.close()
 	connection.logout()
-	Logger().log(i18['log']['check_done']%('IMAP4', record['server'], self.jid))
+	Logger().log(i18['log']['check_done']%(self.used_protocol, record['server'], self.jid))
 	self.status = i18['mailchecker_status']['sleep']
 	return {"result": result, "msg_count": messages_count}
 	
@@ -157,11 +166,14 @@ class MailChecker(Thread):
     def checkMail(self):
 	result = ''
 	record = storage.getRecord(self.jid, self.postbox)
-	try:
-	    boxResult = self.checkImap(record)
-	    if int(boxResult['msg_count']) > 0:
-	        result += i18['user_messages']['new_post']%(record['postbox'], boxResult['result'], boxResult['msg_count'])
-	except CheckError as e_imap:
+	if self.used_protocol == 'unknown' or self.used_protocol == 'IMAP4' or self.used_protocol == 'IMAP4.SSL':
+	    try:
+		boxResult = self.checkImap(record)
+		if int(boxResult['msg_count']) > 0:
+		    result += i18['user_messages']['new_post']%(record['postbox'], boxResult['result'], boxResult['msg_count'])
+	    except CheckError as e_imap:
+		result += "%s\n%s"%(e_imap.value, e_pop.value)
+	if self.used_protocol == 'unknown' or self.used_protocol == 'POP3' or self.used_protocol == 'POP3.SSL':
 	    try:
 	        boxResult = self.checkPop(record)
 	        if int(boxResult['msg_count']) > 0:
