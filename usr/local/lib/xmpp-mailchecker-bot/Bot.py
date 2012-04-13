@@ -5,8 +5,8 @@ import sys, string, xmpp, time
 from threading import Thread, Lock
 import MailCheck, Storage, XMPPLogger
 
+######################################## Commands executor ############################################################
 class CCommandExecuter(object):
-
     def __init__(self, bot, storage, i18, mailcheckers, config):
 	self.i18 = i18
 	self.config = config
@@ -91,8 +91,8 @@ class CCommandExecuter(object):
 
     def cmd_check(self, user, args):
         return self.checkRecords(user.getStripped())
-
-    ####################     admin #################################
+    ########################### user handlers ##################################
+    ########################### admin handlers ###################################
     def cmd_a_add(self, user, args):
         if user.getStripped() in self.config['manage']['admins']:
 	    data = args.split(' ')
@@ -177,19 +177,17 @@ class CCommandExecuter(object):
 	    return getattr(self, cmd)(user, args)
 	else:
 	    return self.i18['user_messages']['unknown_command']%command
-
+######################################## Commands executor ############################################################
 ################################################  bot ####################################################################
 class CBot(object):
-    def __init__(self, i18, config, jid, password, resource):
+    def __init__(self, i18, config):
 	self.terminate = False
 	self.i18 = i18
 	self.config = config
 	self.logger = XMPPLogger.CXMPPLogger(self, config)
 	self.storage = Storage.CDBStorage()
 	self.mailcheckers = MailCheck.CMailCheckers(self, self.i18, self.config, self.storage, self.logger)
-	self.jid = xmpp.JID(jid)
-	self.password = password
-	self.resource = resource
+	self.jid = xmpp.JID(self.config['bot_auth']['jid'])
 	self.mutex = Lock()
 	self.online_users = {}
 	self.cexecuter = CCommandExecuter(self, self.storage, self.i18, self.mailcheckers, self.config)
@@ -252,7 +250,7 @@ class CBot(object):
 	    sys.exit(1)
 	if conres<>'tls':
 	    print "Warning: unable to estabilish secure connection - TLS failed!"
-	authres=self.xmpp_connection.auth(self.jid.getNode(), self.password, self.resource)
+	authres = self.xmpp_connection.auth(self.jid.getNode(), self.config['bot_auth']['pwd'], self.config['bot_auth']['res'])
 	if not authres:
 	    print "Unable to authorize on %s - check login/password."%self.jid.getDomain()
 	    sys.exit(1)

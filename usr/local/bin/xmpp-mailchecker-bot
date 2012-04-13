@@ -13,7 +13,7 @@ json_data=open('/usr/local/share/xmpp-mailchecker-bot/%s'%config['lang'])
 i18 = json.load(json_data)
 json_data.close()
 
-bot = Bot.CBot(i18, config, config['bot_auth']['jid'], config['bot_auth']['pwd'], config['bot_auth']['res'])
+bot = Bot.CBot(i18, config)
 
 def termHSignal(signum, frame):
     bot.quit(i18['log']['bot_sig_stopping']%bot.jid.getStripped())
