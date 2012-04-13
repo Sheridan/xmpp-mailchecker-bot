@@ -65,17 +65,19 @@ class MailChecker(Thread):
 	Logger().log(i18['log']['try_check_mail']%('POP3', record['server'], self.jid))
 	connection = None
 	self.status = i18['mailchecker_status']['connect']%('POP3', record['server'])
-	try:
-	    connection = poplib.POP3_SSL(record['server'])
-	    self.used_protocol = 'POP3.SSL'
-	except:
-	    Logger().log(i18['log']['proto_ssl_err']%('POP3', traceback.format_exc()))
-	    self.used_protocol = 'unknown'
+	if self.used_protocol == 'unknown' or self.used_protocol == 'POP3.SSL':
+	    try:
+		connection = poplib.POP3_SSL(record['server'])
+		self.used_protocol = 'POP3.SSL'
+	    except:
+		Logger().log(i18['log']['proto_ssl_err']%('POP3', traceback.format_exc()))
+		self.used_protocol = 'unknown'
+	if self.used_protocol == 'unknown' or self.used_protocol == 'POP3':
 	    try:
 		connection = poplib.POP3(record['server'])
 		self.used_protocol = 'POP3'
 	    except:
-		Logger().log(i18['log']['proto_err']%('POP3', traceback.format_exc()))
+		Logger().log(i18['log']['proto_err']%('POP3.SSL', traceback.format_exc()))
 		self.used_protocol = 'unknown'
 		raise CheckError(i18['log']['proto_conn_failed']%('POP3', record['server'], traceback.format_exc()))
 	self.status = i18['mailchecker_status']['check']%(self.used_protocol, record['server'])
@@ -109,17 +111,19 @@ class MailChecker(Thread):
 	Logger().log(i18['log']['try_check_mail']%('IMAP4', record['server'], self.jid))
 	connection = None
 	self.status = i18['mailchecker_status']['connect']%('IMAP4', record['server'])
-	try:
-	    connection = imaplib.IMAP4_SSL(record['server'])
-	    self.used_protocol = 'IMAP4.SSL'
-	except:
-	    Logger().log(i18['log']['proto_ssl_err']%('IMAP4', traceback.format_exc()))
-	    self.used_protocol = 'unknown'
+	if self.used_protocol == 'unknown' or self.used_protocol == 'IMAP4.SSL':
+	    try:
+		connection = imaplib.IMAP4_SSL(record['server'])
+		self.used_protocol = 'IMAP4.SSL'
+	    except:
+		Logger().log(i18['log']['proto_ssl_err']%('IMAP4', traceback.format_exc()))
+		self.used_protocol = 'unknown'
+	if self.used_protocol == 'unknown' or self.used_protocol == 'IMAP4':
 	    try:
 		connection = imaplib.IMAP4(record['server'])
 		self.used_protocol = 'IMAP4'
 	    except:
-		Logger().log(i18['log']['proto_err']%('IMAP4', traceback.format_exc()))
+		Logger().log(i18['log']['proto_err']%('IMAP4.SSL', traceback.format_exc()))
 		self.used_protocol = 'unknown'
 		raise CheckError(i18['log']['proto_conn_failed']%('IMAP4', record['server'], traceback.format_exc()))
 	self.status = i18['mailchecker_status']['check']%(self.used_protocol, record['server'])
