@@ -1,11 +1,11 @@
 #!/usr/bin/env python2
 # -*- coding: utf8 -*-
 
-import sys, string, xmpp, time, signal
+import sys, string, xmpp, time
 from threading import Thread, Lock
 import MailCheck, Storage, XMPPLogger
 
-class CCommandExecuter:
+class CCommandExecuter(object):
 
     def __init__(self, bot, storage, i18, mailcheckers, config):
 	self.i18 = i18
@@ -179,7 +179,7 @@ class CCommandExecuter:
 	    return self.i18['user_messages']['unknown_command']%command
 
 ################################################  bot ####################################################################
-class CBot:
+class CBot(object):
     def __init__(self, i18, config, jid, password, resource):
 	self.terminate = False
 	self.i18 = i18

@@ -1,7 +1,7 @@
 #!/usr/bin/env python2
 # -*- coding: utf8 -*-
 
-class CXMPPLogger:
+class CXMPPLogger(object):
     def __init__(self, bot, config):
 	self.config = config
 	self.bot = bot

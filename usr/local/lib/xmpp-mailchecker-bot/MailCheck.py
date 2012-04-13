@@ -194,7 +194,7 @@ class CMailChecker(Thread):
 	self.terminate = True
 ################################################  mail checker ####################################################################
 ################################################  mail checkers ####################################################################
-class CMailCheckers:
+class CMailCheckers(object):
     def __init__(self, bot, i18, config, storage, logger):
 	self.logger = logger
 	self.config = config
