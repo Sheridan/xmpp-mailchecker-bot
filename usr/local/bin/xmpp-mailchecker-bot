@@ -7,7 +7,7 @@ from email.header import decode_header
 from threading import Thread, Lock
 
 sys.path.append(os.path.abspath('/usr/local/lib/xmpp-mailchecker-bot/'))
-import XMPPLogger, MailCheck
+import XMPPLogger, MailCheck, Storage
 
 
 commands = {}
@@ -17,95 +17,17 @@ mailcheckers = None
 config       = None
 logger       = None
 
-################################################  database ####################################################################
-class DBStorage(object):
 
-    def init(self, db_file):
-	db_exists = os.path.exists(db_file)
-	self.db = sqlite3.connect(db_file, check_same_thread = False)
-	if not db_exists:
-	    self.db.cursor().execute('CREATE TABLE records (jid VARCHAR(256), postbox VARCHAR(256), server VARCHAR(256), login VARCHAR(256), password VARCHAR(256))')
-	    self.db.cursor().execute('CREATE TABLE messages (jid VARCHAR(256), postbox VARCHAR(256), message_hash VARCHAR(64))')
-	    self.db.cursor().execute('create index records_index_jid on records (jid)')
-	    self.db.cursor().execute('create index records_index on records (jid, postbox)')
-	    self.db.cursor().execute('create index messages_index_jid on messages (jid)')
-	    self.db.cursor().execute('create index messages_index on messages (jid, postbox)')
-	    self.db.commit()
-	
-    def getRecord(self, jid, postbox):
-	q = self.db.cursor()
-	q.execute('select server, login, password from records where jid=? and postbox=?', (jid, postbox))
-	for row in q:
-	    return {'jid': jid, 'postbox': postbox, 'server': row[0], 'login': row[1], 'password': row[2]}
-	    
-    def getRecords(self, jid):
-	q = self.db.cursor()
-	q.execute('select postbox, server, login, password from records where jid=?', [jid])
-	result=list()
-	for row in q:
-	    result.append({'jid': jid, 'postbox': row[0], 'server': row[1], 'login': row[2], 'password': row[3]})
-	return result
 
-    def getJids(self):
-	q = self.db.cursor()
-	q.execute('select distinct jid from records')
-	result=list()
-	for row in q:
-	    result.append(row[0])
-	return result
+json_data=open('/etc/xmpp-mailchecker-bot.conf')
+config = json.load(json_data)
+json_data.close()
 
-    def storeRecord(self, jid, postbox, server, login, password):
-	self.db.cursor().execute('INSERT INTO records VALUES (?, ?, ?, ?, ?)', (jid, postbox, server, login, password))
-	self.db.commit()
-	
-    def editRecord(self, jid, postbox, server, login, password):
-	self.db.cursor().execute('update records set server=?, login=?, password=? wherejid=? and postbox=?)', (server, login, password, jid, postbox))
-	self.db.commit()
-	
-    def removeRecord(self, jid, postbox):
-	self.db.cursor().execute('delete from records where jid=? and postbox=?', (jid, postbox))
-	self.db.commit()
-	self.resetMessageHashes(jid, postbox)
-	
-    def checkMessageHashExists(self, jid, postbox, message_hash):
-	q = self.db.cursor()
-	q.execute('select count(*) from messages where jid=? and postbox=? and message_hash=?', (jid, postbox, message_hash))
-	result = False
-	for row in q:
-	    if int(row[0]) > 0:
-		result = True
-	    else:
-		self.db.cursor().execute('INSERT INTO messages VALUES (?, ?, ?)', (jid, postbox, message_hash))
-		self.db.commit()
-	    break
-	return result
+json_data=open('/usr/local/share/xmpp-mailchecker-bot/%s'%config['lang'])
+i18 = json.load(json_data)
+json_data.close()
 
-    def cleanMessageHashes(self, jid, postbox, hashes):
-	q = self.db.cursor()
-	q.execute('select message_hash from messages where jid=? and postbox=?', (jid, postbox))
-	for row in q:
-	    if row[0] not in hashes:
-		self.db.cursor().execute('delete from messages where jid=? and postbox=? and message_hash=?', (jid, postbox, row[0]))
-		self.db.commit()
-	
-    def resetMessageHashes(self, jid, postbox):
-	if postbox != '':
-	    self.db.cursor().execute('delete from messages where jid=? and postbox=?', (jid, postbox))
-	else:
-	    self.db.cursor().execute('delete from messages where jid=?', [jid])
-	self.db.commit()
-################################################  database ####################################################################
-################################################  message composer ####################################################################
-class MessageComposer:
-    def listRecords(self, jid, unsequre):
-        result=''
-	for record in storage.getRecords(jid):
-	    result += '%s %s'%(record['postbox'],record['server'])
-	    if unsequre:
-		result += ' %s %s'%(record['login'],record['password'])
-	    result += '\n'
-	return i18['user_messages']['records_list']%result;
-################################################  message composer ####################################################################
+
 ########################### user handlers ##################################
 
 def helpHandler(user,command,args,mess):
@@ -228,9 +150,10 @@ def a_quitHandler(user,command,args,mess):
 ########################### user handlers stop ###################################
 ################################################  bot ####################################################################
 class Bot:
-    def __init__(self, mailcheckers, logger, jid, password, resource):
+    def __init__(self, storage, mailcheckers, logger, jid, password, resource):
 	self.terminate = False
 	self.logger = logger
+	self.storage = storage
 	self.mailcheckers = mailcheckers
 	self.jid = xmpp.JID(jid)
 	self.password = password
@@ -318,42 +241,52 @@ class Bot:
 	self.GoOn();
 
     def runMailCheckers(self):
-	for jid in storage.getJids():
-	    for record in storage.getRecords(jid):
+	for jid in self.storage.getJids():
+	    for record in self.storage.getRecords(jid):
 		self.mailcheckers.add(jid, record['postbox'])
 		time.sleep(int(config['mailchecker_threads_start_interval']))
 	pass
     ################## commands ==================
     def addRecord(self, jid, mailbox, server, login, password):
-	storage.storeRecord(jid, mailbox, server, login, password)
+	self.storage.storeRecord(jid, mailbox, server, login, password)
 	mailcheckers.add(jid, mailbox)
-	return i18['user_messages']['record_stored']%(mailbox, server, MessageComposer().listRecords(jid, False))
+	return i18['user_messages']['record_stored']%(mailbox, server, self.listRecords(jid, False))
 	
     def editRecord(self, jid, mailbox, server, login, password):
-	storage.editRecord(jid, mailbox, server, login, password)
-	return i18['user_messages']['record_changed']%(mailbox, server, MessageComposer().listRecords(jid, False))
+	self.storage.editRecord(jid, mailbox, server, login, password)
+	return i18['user_messages']['record_changed']%(mailbox, server, self.listRecords(jid, False))
 	
     def removeRecord(self, jid, mailbox):
-	storage.removeRecord(jid, mailbox)
-	return i18['user_messages']['record_removed']%(mailbox, server, MessageComposer().listRecords(jid, False))
+	self.storage.removeRecord(jid, mailbox)
+	return i18['user_messages']['record_removed']%(mailbox, server, self.listRecords(jid, False))
     
     def listRecords(self, jid, unsequre):
-	return MessageComposer().listRecords(jid, unsequre)
+	return self.listRecords(jid, unsequre)
 	
     def resetRecord(self, jid, mailbox):
-	storage.resetMessageHashes(jid, mailbox)
+	self.storage.resetMessageHashes(jid, mailbox)
 	return i18['user_messages']['record_cashe_reseted']%jid
 	
     def resetRecords(self, jid):
 	message = ''
-	for record in storage.getRecords(jid):
+	for record in self.storage.getRecords(jid):
 	    message += '%s\n'%self.resetRecord(jid, mailbox)
 	return message
 	
     def checkRecords(self, jid):
-	mailcheckers.checkNow(jid)
+	self.mailcheckers.checkNow(jid)
 	return i18['user_messages']['record_check_started']%jid
+
+    def listRecords(self, jid, unsequre):
+        result=''
+	for record in self.storage.getRecords(jid):
+	    result += '%s %s'%(record['postbox'],record['server'])
+	    if unsequre:
+		result += ' %s %s'%(record['login'],record['password'])
+	    result += '\n'
+	return i18['user_messages']['records_list']%result;
 ################################################  bot ####################################################################
+
 
 def termHSignal(signum, frame):
     bot.quit(i18['log']['bot_sig_stopping']%bot.jid.getStripped())
@@ -361,19 +294,11 @@ def termHSignal(signum, frame):
 signal.signal(signal.SIGINT, termHSignal)
 signal.signal(signal.SIGTERM, termHSignal)
 
-json_data=open('/etc/xmpp-mailchecker-bot.conf')
-config = json.load(json_data)
-json_data.close()
-
-json_data=open('/usr/local/share/xmpp-mailchecker-bot/%s'%config['lang'])
-i18 = json.load(json_data)
-json_data.close()
-
 logger = XMPPLogger.CXMPPLogger(config)
-storage = DBStorage()
+storage = Storage.CDBStorage()
 storage.init(config['database_file'])
 mailcheckers = MailCheck.CMailCheckers(i18, config, storage, logger)
-bot = Bot(mailcheckers, logger, config['bot_auth']['jid'], config['bot_auth']['pwd'], config['bot_auth']['res'])
+bot = Bot(storage, mailcheckers, logger, config['bot_auth']['jid'], config['bot_auth']['pwd'], config['bot_auth']['res'])
 
 logger.setBot(bot)
 
