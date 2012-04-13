@@ -15,12 +15,13 @@ class ECheckError(Exception):
 ################################################  exception ####################################################################
 ################################################  mail checker ####################################################################
 class CMailChecker(Thread):
-    def __init__(self, i18, config, storage, logger, jid, postbox, interval):
+    def __init__(self, bot, i18, config, storage, logger, jid, postbox, interval):
 	Thread.__init__(self)
 	self.logger = logger
 	self.config = config
 	self.storage = storage
 	self.i18 = i18
+	self.bot = bot
 	self.jid = jid
 	self.postbox = postbox
 	self.interval = interval
@@ -175,7 +176,7 @@ class CMailChecker(Thread):
 	while not self.terminate:
 	    result = self.checkMail()
 	    if result != '':
-		bot.sendMessage(self.jid, result)
+		self.bot.sendMessage(self.jid, result)
 	    for x in range(0, self.interval):
 		time.sleep(1)
 		if self.terminate or self.check_now:
@@ -194,11 +195,12 @@ class CMailChecker(Thread):
 ################################################  mail checker ####################################################################
 ################################################  mail checkers ####################################################################
 class CMailCheckers:
-    def __init__(self, i18, config, storage, logger):
+    def __init__(self, bot, i18, config, storage, logger):
 	self.logger = logger
 	self.config = config
 	self.storage = storage
 	self.i18 = i18
+	self.bot = bot
 	self.checkers = []
 	
     def add(self, jid, postbox):
@@ -208,7 +210,7 @@ class CMailCheckers:
 		checker = ch['ch']
 		break
 	if not checker:
-	    checker = CMailChecker(self.i18, self.config, self.storage, self.logger, jid, postbox, int(self.config['mail_check_interval']))
+	    checker = CMailChecker(self.bot, self.i18, self.config, self.storage, self.logger, jid, postbox, int(self.config['mail_check_interval']))
 	    self.checkers.append({ 'jid': jid, 'postbox': postbox, 'ch': checker })
 	    checker.start()
 	

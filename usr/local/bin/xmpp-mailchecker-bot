@@ -7,7 +7,7 @@ from email.header import decode_header
 from threading import Thread, Lock
 
 sys.path.append(os.path.abspath('/usr/local/lib/xmpp-mailchecker-bot/'))
-import XMPPLogger, MailCheck, Storage, Bot
+import XMPPLogger, Storage, Bot
 
 
 
@@ -22,7 +22,7 @@ json_data.close()
 logger = XMPPLogger.CXMPPLogger(config)
 storage = Storage.CDBStorage()
 storage.init(config['database_file'])
-bot = Bot.CBot(i18, config, storage, MailCheck.CMailCheckers(i18, config, storage, logger), logger, config['bot_auth']['jid'], config['bot_auth']['pwd'], config['bot_auth']['res'])
+bot = Bot.CBot(i18, config, storage, logger, config['bot_auth']['jid'], config['bot_auth']['pwd'], config['bot_auth']['res'])
 
 def termHSignal(signum, frame):
     bot.quit(i18['log']['bot_sig_stopping']%bot.jid.getStripped())

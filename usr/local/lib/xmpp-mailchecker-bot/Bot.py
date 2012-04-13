@@ -3,6 +3,7 @@
 
 import sys, string, xmpp, time, signal
 from threading import Thread, Lock
+import MailCheck
 
 class CCommandExecuter:
 
@@ -179,13 +180,13 @@ class CCommandExecuter:
 
 ################################################  bot ####################################################################
 class CBot:
-    def __init__(self, i18, config, storage, mailcheckers, logger, jid, password, resource):
+    def __init__(self, i18, config, storage, logger, jid, password, resource):
 	self.terminate = False
 	self.i18 = i18
 	self.config = config
 	self.logger = logger
 	self.storage = storage
-	self.mailcheckers = mailcheckers
+	self.mailcheckers = MailCheck.CMailCheckers(self, self.i18, self.config, self.storage, self.logger)
 	self.jid = xmpp.JID(jid)
 	self.password = password
 	self.resource = resource
@@ -260,7 +261,7 @@ class CBot:
 	self.xmpp_connection.RegisterHandler('presence', self.presenceCB)
 	self.xmpp_connection.sendInitPresence()
 	self.logger.logToAdmins(self.i18['log']['bot_starting']%self.jid.getStripped())
-	#self.runMailCheckers()
+	self.runMailCheckers()
 	self.logger.logToAdmins(self.i18['log']['bot_started']%self.jid.getStripped())
 	self.GoOn();
 
