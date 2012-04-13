@@ -147,7 +147,11 @@ class MailChecker(Thread):
 	return {"result": result, "msg_count": messages_count}
 	
     def buildMessageHash(self, message):
-	return hashlib.sha224(message['From']+message['Subject']).hexdigest()
+	text = ''
+	for header in ('From', 'Subject', 'Message-Id', 'Date', 'Received', 'Return-Path', 'X-Mailer'):
+	    if message[header]:
+		text += message[header]
+	return hashlib.sha224(text).hexdigest()
 	
     def checkMail(self):
 	result = ''
