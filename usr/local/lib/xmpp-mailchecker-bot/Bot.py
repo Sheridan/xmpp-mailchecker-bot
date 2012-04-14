@@ -189,17 +189,38 @@ class CBot(object):
 	self.mailcheckers = MailCheck.CMailCheckers(self, self.i18, self.config, self.storage, self.logger)
 	self.jid = xmpp.JID(self.config['bot_auth']['jid'])
 	self.mutex = Lock()
-	self.online_users = {}
+	self.online_users = dict()
 	self.cexecuter = CCommandExecuter(self, self.storage, self.i18, self.mailcheckers, self.config)
+
+    def jidOnLine(self, jid):
+	return self.online_users.has_key(jid)
+
+    def setJidOnLine(self, jid):
+	stripped = jid.getStripped()
+	resource = jid.getResource()
+	if not self.online_users.has_key(stripped):
+	    self.online_users[stripped] = list()
+	if resource not in self.online_users[stripped]:
+	    self.online_users[stripped].append(resource)
+	
+    def setJidOffLine(self, jid):
+	stripped = jid.getStripped()
+	if len(self.online_users[stripped]) <= 1:
+	    del self.online_users[stripped]
+	else:
+	    resource_in = jid.getResource()
+	    for resource in self.online_users[stripped]:
+		if resource == resource_in:
+		    del resource
+		    break
 
     def presenceCB(self, client_connection, msg):
 	prs_type = msg.getType()
 	who = msg.getFrom()
 	jid_stripped = who.getStripped()
-	if jid_stripped not in self.online_users:
-	    self.online_users[jid_stripped] = set()
+	self.setJidOnLine(who)
 	if prs_type == "unavailable":
-	    del self.online_users[jid_stripped]
+	    self.setJidOffLine(who)
 	if prs_type == "subscribe":
 	    self.sendPresence(who, 'subscribed')
 	    self.sendPresence(who, 'subscribe')
@@ -212,14 +233,23 @@ class CBot(object):
 	    command,args=text.split(' ',1)
 	else: 
 	    command,args=text,''
-	self.sendMessage(mess.getFrom().getStripped(), self.cexecuter.execCommand(user, command.lower(), args))
+	self.sendReply(mess.getFrom(), self.cexecuter.execCommand(user, command.lower(), args))
 
     def sendMessage(self, jid_to, text):
 	self.mutex.acquire()
 	if jid_to in self.online_users                and self.config['manage']['send_to_offline_user']   == 'true' or \
 	   jid_to in self.config['manage']['admins']  and self.config['manage']['send_to_offline_admin']  == 'true' or \
 	   jid_to in self.config['manage']['loggers'] and self.config['manage']['send_to_offline_logger'] == 'true':
-	    self.xmpp_connection.send(xmpp.Message(jid_to, text, 'chat'))
+	    if self.jidOnLine(jid_to):
+		for resource in self.online_users[jid_to]:
+		    self.xmpp_connection.send(xmpp.Message(jid_to+'/'+resource, text, 'chat'))
+	    else:
+		self.xmpp_connection.send(xmpp.Message(jid_to, text, 'chat'))
+	self.mutex.release()
+	
+    def sendReply(self, JID, text):
+	self.mutex.acquire()
+	self.xmpp_connection.send(xmpp.Message(JID, text, 'chat'))
 	self.mutex.release()
 	
     def sendPresence(self, jid_to, p_type):
