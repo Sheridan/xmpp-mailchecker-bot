@@ -161,14 +161,14 @@ class CMailChecker(Thread):
 		boxResult = self.checkImap(record)
 		if int(boxResult['msg_count']) > 0:
 		    result += self.i18['user_messages']['new_post']%(record['postbox'], boxResult['result'], boxResult['msg_count'])
-	    except CheckError as e_imap:
+	    except ECheckError as e_imap:
 		result += "%s\n%s"%(e_imap.value, e_pop.value)
 	if self.used_protocol == 'unknown' or self.used_protocol == 'POP3' or self.used_protocol == 'POP3.SSL':
 	    try:
 	        boxResult = self.checkPop(record)
 	        if int(boxResult['msg_count']) > 0:
 		    result += self.i18['user_messages']['new_post']%(record['postbox'], boxResult['result'], boxResult['msg_count'])
-	    except CheckError as e_pop:
+	    except ECheckError as e_pop:
 		result += "%s\n%s"%(e_imap.value, e_pop.value)
 	return result
 
